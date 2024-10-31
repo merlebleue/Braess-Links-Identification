@@ -99,7 +99,7 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
     #Loop
     n_iter = 0
     def generator():
-        while abs(total_time - prev_total_time) > tolerance and n_iter < n_max:
+        while abs(total_time - prev_total_time)/total_time > tolerance and n_iter < n_max:
             yield
     if verbose >0: #For following the progress
         generator = tqdm(generator())
@@ -107,7 +107,6 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
         generator = generator()
     for _ in generator:
         n_iter = n_iter + 1
-
 
         # Update time
         times = BTR_cost_function(total_flows.a, net)
@@ -130,26 +129,27 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
     
     return flows_by_o, total_flows
 
-def frankwolf_by_OD(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-3, verbose=0):
+def frankwolf_by_origin(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-3, verbose=0):
     # Work in progress
-    def direction_search(times : gt.EdgePropertyMap):
+
+    def direction_search(times : gt.EdgePropertyMap, origin: int):
         """
-            Performs all-or-nothing assignment based on the 'times' edge property
+            Performs all-or-nothing assignment based on the 'times' edge property for the given origin
             Returns :
             - computed_flows : an EdgePropertyMap, which countains for each edge a vector with the flow from each origin
         """
         computed_flows = net.new_edge_property("vector<float>", vals=np.zeros((net.num_edges(), net.num_vertices())))
         flows_array = computed_flows.get_2d_array()
 
-        # For each origin
-        for o in range(OD.shape[0]):
-            # Use shortest path algorithm to get list of links for each destination
-            paths,_ = shortest_path_alg(net, times, o)
-            # Convert list of links to numpy mask
-            paths_mask = {k : net.get_edge_mask(i) for k,i in paths.items()}
-            # Add flow of each destination to each link in its path
-            for d, edge_mask in paths_mask.items():
-                flows_array[o, edge_mask] += OD[o, d]
+        # For the given origin
+        o = origin
+        # Use shortest path algorithm to get list of links for each destination
+        paths,_ = shortest_path_alg(net, times, o)
+        # Convert list of links to numpy mask
+        paths_mask = {k : net.get_edge_mask(i) for k,i in paths.items()}
+        # Add flow of each destination to each link in its path
+        for d, edge_mask in paths_mask.items():
+            flows_array[o, edge_mask] += OD[o, d]
         
         # Set the array to the edge property
         computed_flows.set_2d_array(flows_array)
@@ -164,17 +164,19 @@ def frankwolf_by_OD(net: Network, OD : np.array, shortest_path_alg = shortest_pa
     flows_by_o = net.new_edge_property("vector<float>", vals=np.zeros((net.num_edges(), net.num_vertices())))
     total_flows = net.new_edge_property("float", vals=flows_by_o.get_2d_array().sum(axis=0))
 
-    times = BTR_cost_function(total_flows.a, net)
-    prev_total_time = 1e10 
-    total_time = times.a.sum()
+    # Initial trafic assignment, by origin
+    for o in range(OD.shape[0]):
+        times = BTR_cost_function(total_flows.a, net)
+        prev_total_time = 1e10 
+        total_time = times.a.sum()
 
-    flows_by_o = direction_search(times)
-    total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
+        flows_by_o.set_2d_array(direction_search(times, o).get_2d_array() + flows_by_o.get_2d_array())
+        total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
 
     #Loop
     n_iter = 0
     def generator():
-        while abs(total_time - prev_total_time) > tolerance and n_iter < n_max:
+        while abs(total_time - prev_total_time)/total_time > tolerance and n_iter < n_max:
             yield
     if verbose >0: #For following the progress
         generator = tqdm(generator())
@@ -183,24 +185,25 @@ def frankwolf_by_OD(net: Network, OD : np.array, shortest_path_alg = shortest_pa
     for _ in generator:
         n_iter = n_iter + 1
 
+        for o in tqdm(range(OD.shape[0])):
+            # Update time
+            times = BTR_cost_function(total_flows.a, net)
 
-        # Update time
-        times = BTR_cost_function(total_flows.a, net)
+            # Direction search
+            direction_by_o = direction_search(times, o)
+            direction = net.new_edge_property("float", vals=direction_by_o.get_2d_array().sum(axis=0))
+
+            # Line search
+            if verbose > 1: #Debug
+                print(total_flows.a)
+                print(direction.a)
+            alpha = bisect(lambda a : get_z_prime(a, total_flows, direction), 0, 1, disp=True)
+
+            # Update
+            flows_by_o.set_2d_array(flows_by_o.get_2d_array() + alpha*(direction_by_o.get_2d_array() - flows_by_o.get_2d_array()))
+            total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
+
         prev_total_time = total_time
         total_time = times.a.sum()
-
-        # Direction search
-        direction_by_o = direction_search(times)
-        direction = net.new_edge_property("float", vals=direction_by_o.get_2d_array().sum(axis=0))
-
-        # Line search
-        if verbose > 1: #Debug
-            print(total_flows.a)
-            print(direction.a)
-        alpha = bisect(lambda a : get_z_prime(a, total_flows, direction), 0, 1, disp=True)
-
-        # Update
-        flows_by_o.set_2d_array(flows_by_o.get_2d_array() + alpha*(direction_by_o.get_2d_array() - flows_by_o.get_2d_array()))
-        total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
     
     return flows_by_o, total_flows
