@@ -5,3 +5,13 @@
 /helpers.py
 /import_network.py
 /plots.py
+_old
+_old/*
+_old/helpers.py
+_old/import_network.py
+_old/plots.py
+_old/Test.ipynb
+_old/Files/SiouxFalls/flow.csv
+_old/Files/SiouxFalls/net.csv
+_old/Files/SiouxFalls/node.csv
+_old/Files/SiouxFalls/trips.csv
