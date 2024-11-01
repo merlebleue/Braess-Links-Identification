@@ -95,10 +95,14 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
     total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
 
     #Loop
+    def generator():
+        n_iter = 0
+        while n_iter < n_max:
+            yield n_iter
     if verbose >0: #For following the progress
-        generator = tqdm(range(int(n_max)))
+        generator = tqdm(generator())
     else :
-        generator = range(int(n_max))
+        generator = generator()
     for n_iter in generator:
 
         # Update time
@@ -113,7 +117,7 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
         if verbose > 1: #Debug
             print(n_iter, relative_error)
         if verbose > 0:
-            generator.set_postfix({"Relative error" : relative_error})
+            generator.set_postfix({"Relative error" : f"{relative_error:.2e}"})
         if relative_error <= tolerance:
             break
 
@@ -133,17 +137,19 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
 def frankwolf_by_origin(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-4, verbose=0):
     # Work in progress
 
-    def direction_search(times : gt.EdgePropertyMap, origin: int):
+    def direction_search(times : gt.EdgePropertyMap, flows : gt.EdgePropertyMap, origin: int):
         """
             Performs all-or-nothing assignment based on the 'times' edge property for the given origin
             Returns :
             - computed_flows : an EdgePropertyMap, which countains for each edge a vector with the flow from each origin
         """
         computed_flows = net.new_edge_property("vector<float>", vals=np.zeros((net.num_edges(), net.num_vertices())))
-        flows_array = computed_flows.get_2d_array()
+        flows_array = flows.get_2d_array()
 
         # For the given origin
         o = origin
+        #Reset the flows
+        flows_array[o, :] = 0
         # Use shortest path algorithm to get list of links for each destination
         paths,_ = shortest_path_alg(net, times, o)
         # Convert list of links to numpy mask
@@ -151,6 +157,30 @@ def frankwolf_by_origin(net: Network, OD : np.array, shortest_path_alg = shortes
         # Add flow of each destination to each link in its path
         for d, edge_mask in paths_mask.items():
             flows_array[o, edge_mask] += OD[o, d]
+        
+        # Set the array to the edge property
+        computed_flows.set_2d_array(flows_array)
+
+        return computed_flows
+    
+    def shortest_path_flows(times : gt.EdgePropertyMap):
+        """
+            Performs all-or-nothing assignment based on the 'times' edge property
+            Returns :
+            - computed_flows : an EdgePropertyMap, which countains for each edge a vector with the flow from each origin
+        """
+        computed_flows = net.new_edge_property("vector<float>", vals=np.zeros((net.num_edges(), net.num_vertices())))
+        flows_array = computed_flows.get_2d_array()
+
+        # For each origin
+        for o in range(OD.shape[0]):
+            # Use shortest path algorithm to get list of links for each destination
+            paths,_ = shortest_path_alg(net, times, o)
+            # Convert list of links to numpy mask
+            paths_mask = {k : net.get_edge_mask(i) for k,i in paths.items()}
+            # Add flow of each destination to each link in its path
+            for d, edge_mask in paths_mask.items():
+                flows_array[o, edge_mask] += OD[o, d]
         
         # Set the array to the edge property
         computed_flows.set_2d_array(flows_array)
@@ -168,23 +198,19 @@ def frankwolf_by_origin(net: Network, OD : np.array, shortest_path_alg = shortes
     # Initial trafic assignment, by origin
     for o in range(OD.shape[0]):
         times = BTR_cost_function(total_flows.a, net)
-        prev_total_time = 1e10 
-        total_time = times.a.sum()
 
-        flows_by_o.set_2d_array(direction_search(times, o).get_2d_array() + flows_by_o.get_2d_array())
+        flows_by_o.set_2d_array(direction_search(times, flows_by_o, o).get_2d_array() + flows_by_o.get_2d_array())
         total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
 
-    #Loop
-    n_iter = 0
     def generator():
-        while abs(total_time - prev_total_time)/total_time > tolerance and n_iter < n_max:
-            yield
+        n_iter = 0
+        while n_iter < n_max:
+            yield n_iter
     if verbose >0: #For following the progress
         generator = tqdm(generator())
     else :
         generator = generator()
-    for _ in generator:
-        n_iter = n_iter + 1
+    for n_iter in generator:
 
         iterator = tqdm(range(OD.shape[0])) if verbose >0 else range(OD.shape[0])
         for o in iterator:
@@ -192,7 +218,7 @@ def frankwolf_by_origin(net: Network, OD : np.array, shortest_path_alg = shortes
             times = BTR_cost_function(total_flows.a, net)
 
             # Direction search
-            direction_by_o = direction_search(times, o)
+            direction_by_o = direction_search(times, flows_by_o, o)
             direction = net.new_edge_property("float", vals=direction_by_o.get_2d_array().sum(axis=0))
 
             # Line search
@@ -205,7 +231,15 @@ def frankwolf_by_origin(net: Network, OD : np.array, shortest_path_alg = shortes
             flows_by_o.set_2d_array(flows_by_o.get_2d_array() + alpha*(direction_by_o.get_2d_array() - flows_by_o.get_2d_array()))
             total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
 
-        prev_total_time = total_time
-        total_time = times.a.sum()
+        # Convergence
+        times = BTR_cost_function(total_flows.a, net)
+        sp_flows = shortest_path_flows(times).get_2d_array().sum(axis=0)
+        relative_error = abs( 1 - ( (times.a * sp_flows).sum()/(times.a * total_flows.a).sum() ) )
+        if verbose > 1: #Debug
+            print(n_iter, relative_error)
+        if verbose > 0:
+            generator.set_postfix({"Relative error" : f"{relative_error:.2e}"})
+        if relative_error <= tolerance:
+            break
     
     return flows_by_o, total_flows
