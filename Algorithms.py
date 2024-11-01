@@ -90,35 +90,35 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
     total_flows = net.new_edge_property("float", vals=flows_by_o.get_2d_array().sum(axis=0))
 
     times = BTR_cost_function(total_flows.a, net)
-    prev_total_time = 1e10 
-    total_time = times.a.sum()
 
-    flows_by_o = direction_search(times)
+    flows_by_o = direction_search(times) #First all-or-nothing assignment
     total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
 
     #Loop
-    n_iter = 0
-    def generator():
-        while abs(total_time - prev_total_time)/total_time > tolerance and n_iter < n_max:
-            yield
     if verbose >0: #For following the progress
-        generator = tqdm(generator())
+        generator = tqdm(range(int(n_max)))
     else :
-        generator = generator()
-    for _ in generator:
-        n_iter = n_iter + 1
+        generator = range(int(n_max))
+    for n_iter in generator:
 
         # Update time
         times = BTR_cost_function(total_flows.a, net)
-        prev_total_time = total_time
-        total_time = times.a.sum()
 
         # Direction search
         direction_by_o = direction_search(times)
         direction = net.new_edge_property("float", vals=direction_by_o.get_2d_array().sum(axis=0))
 
-        # Line search
+        # Convergence
+        relative_error = abs( 1 - ( (times.a * direction.a).sum()/(times.a * total_flows.a).sum() ) )
         if verbose > 1: #Debug
+            print(n_iter, relative_error)
+        if verbose > 0:
+            generator.set_postfix({"Relative error" : relative_error})
+        if relative_error <= tolerance:
+            break
+
+        # Line search
+        if verbose > 2: #Debug
             print(total_flows.a)
             print(direction.a)
         alpha = bisect(lambda a : get_z_prime(a, total_flows, direction), 0, 1, disp=True)
@@ -126,7 +126,8 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
         # Update
         flows_by_o.set_2d_array(flows_by_o.get_2d_array() + alpha*(direction_by_o.get_2d_array() - flows_by_o.get_2d_array()))
         total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
-    
+
+
     return flows_by_o, total_flows
 
 def frankwolf_by_origin(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-4, verbose=0):
