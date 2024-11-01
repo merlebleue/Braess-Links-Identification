@@ -55,7 +55,7 @@ def BTR_cost_function(flows_array: np.array, net: Network):
     computed_times.a = get("free_flow_time") * (1 + get("b") * (flows_array/get("capacity"))**get("power"))
     return computed_times
 
-def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-3, verbose=0):
+def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-4, verbose=0):
     
     def direction_search(times : gt.EdgePropertyMap):
         """
@@ -129,7 +129,7 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
     
     return flows_by_o, total_flows
 
-def frankwolf_by_origin(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-3, verbose=0):
+def frankwolf_by_origin(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-4, verbose=0):
     # Work in progress
 
     def direction_search(times : gt.EdgePropertyMap, origin: int):
@@ -185,7 +185,8 @@ def frankwolf_by_origin(net: Network, OD : np.array, shortest_path_alg = shortes
     for _ in generator:
         n_iter = n_iter + 1
 
-        for o in tqdm(range(OD.shape[0])):
+        iterator = tqdm(range(OD.shape[0])) if verbose >0 else range(OD.shape[0])
+        for o in iterator:
             # Update time
             times = BTR_cost_function(total_flows.a, net)
 
