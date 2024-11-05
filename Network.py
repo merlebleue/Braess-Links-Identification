@@ -70,7 +70,7 @@ class Network(Graph):
         if "flow" in files:
             self.TNTP_flows = pd.read_csv(files["flow"], sep='\t')
 
-    def draw(self, interactive=False, **kwargs):
+    def draw(self, interactive=False, flows: EdgePropertyMap =None, **kwargs):
         draw_function = interactive_window if interactive else graph_draw
         
         options = dict(ink_scale=0.5,
@@ -80,6 +80,12 @@ class Network(Graph):
 
         for k, i in kwargs.items():
             options[k] = i
+
+        if flows != None:
+            options["edge_pen_width"] = prop_to_size(flows)
+            text = self.new_edge_property("int")
+            text.a = np.round(flows.a)
+            options["edge_text"] = text
 
         return draw_function(self, **options)
     
