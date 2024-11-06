@@ -34,29 +34,32 @@ def backward_entropy_maximisation(net: Network, flows_by_o: gt.EdgePropertyMap, 
     # Main loop
     for r in range(n_nodes): # For each origin
         if eta_rj[r, n] > 0:
-            K = {n}
+            K = [n]
             k_r = np.zeros((n_nodes))
             k_r[n] = eta_rj[r, n]
             while len(K) > 0:
-                m = K.pop()
+                m = K.pop(0)
                 if k_r[m] > 0:
                     omega = k_r[m]
                     k_r[m] = 0
                     i, _, e = net.get_in_edges(m, [net.edge_index]).T
+                    i, e = i[psi_r_ij[r,e]>0], e[psi_r_ij[r,e]>0]
                     alpha = omega * psi_r_ij[r, e]
                     residuals_a[r, e] -= alpha
                     x_n_a[e] += alpha
-                    K.update(i[psi_r_ij[r, e] > 0])
-                    k_r[i[psi_r_ij[r, e] > 0]] += alpha[psi_r_ij[r, e] > 0]
+                    K.extend(i[i!=r])
+                    K = list(dict.fromkeys(K)) #remove duplicates
+                    k_r[i[i!=r]] += alpha[i!=r]
 
     residuals.set_2d_array(residuals_a)
+    x_n.a = x_n_a
 
     return x_n, residuals
 
 def forward_entropy_maximization(net: Network, x_n: gt.EdgePropertyMap, residuals: gt.EdgePropertyMap, n: int):
     new_flows = residuals.copy()
     new_flows_a = new_flows.get_2d_array()
-    x_n_a = x_n.a
+    x_n_a = x_n.copy().a
     
     n_nodes = new_flows_a.shape[0]
     n_edges = new_flows_a.shape[1]
@@ -90,8 +93,8 @@ def forward_entropy_maximization(net: Network, x_n: gt.EdgePropertyMap, residual
                     _, j, e = net.get_out_edges(m, [net.edge_index]).T
                     j, e = j[x_n_a[e] > 0], e[x_n_a[e]>0]
                     alpha = omega * phi_n[e]
-                    new_flows_a[r, e] -= alpha
-                    x_n_a[e] += alpha
+                    new_flows_a[r, e] += alpha
+                    x_n_a[e] -= alpha
                     K.update(j[j != n])
                     k_n[j[j != n]] += alpha[j != n]
 
@@ -128,21 +131,16 @@ def EMARB(net: Network,
     # Main Loop
     def generator():
         n_iter = 0
-        while not (chi<epsilon).all():
+        while not (np.abs(chi)<epsilon).all():
             n_iter += 1
             yield n_iter
     for iter in tqdm(generator()) :
         for n in tqdm(range(n_nodes)):
             if chi[n]>sigma*chi_barre or iter%M==0 :
-                print(n, end=" ")
                 x_n, residuals = backward_entropy_maximisation(net, flows, n)
-                print("a", end=" ")
                 flows = forward_entropy_maximization(net, x_n, residuals, n)
-                print("b", end=" ")
                 chi[n] = (flows.get_2d_array() - flows_a).sum()
-                print("c", end=" ")
                 flows_a = flows.get_2d_array()
-                print("d")
         chi_barre = chi.sum() / n_nodes
     
     return flows
