@@ -131,7 +131,7 @@ def EMARB(net: Network,
     # Main Loop
     def generator():
         n_iter = 0
-        while not (np.abs(chi)<epsilon).all():
+        while not (chi<epsilon).all():
             n_iter += 1
             yield n_iter
     for iter in tqdm(generator()) :
@@ -139,7 +139,7 @@ def EMARB(net: Network,
             if chi[n]>sigma*chi_barre or iter%M==0 :
                 x_n, residuals = backward_entropy_maximisation(net, flows, n)
                 flows = forward_entropy_maximization(net, x_n, residuals, n)
-                chi[n] = (flows.get_2d_array() - flows_a).sum()
+                chi[n] = np.abs(flows.get_2d_array() - flows_a).sum()
                 flows_a = flows.get_2d_array()
         chi_barre = chi.sum() / n_nodes
     
