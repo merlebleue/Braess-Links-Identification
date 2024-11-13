@@ -135,7 +135,7 @@ def EMARB(net: Network,
             n_iter += 1
             yield n_iter
     for iter in tqdm(generator()) :
-        for n in tqdm(range(n_nodes)):
+        for n in tqdm(range(n_nodes), desc = f"{iter}: {".".join(np.where(chi>sigma*chi_barre, "X", " "))}"):
             if chi[n]>sigma*chi_barre or iter%M==0 :
                 x_n, residuals = backward_entropy_maximisation(net, flows, n)
                 flows = forward_entropy_maximization(net, x_n, residuals, n)
