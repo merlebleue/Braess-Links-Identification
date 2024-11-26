@@ -16,6 +16,8 @@ class Network(Graph):
         - args, kargs for the Graph class
         """
 
+        self.folder_name = folder_name
+
         def import_matrix(matfile):
             f = open(matfile, 'r')
             all_rows = f.read()
@@ -101,3 +103,66 @@ class Network(Graph):
         
         mask = (edge_array[:,None] == edges_list).all(2).any(1)
         return mask
+    
+    def save_flow(self, flow: EdgePropertyMap, name: str, folder = "files"):
+        """
+        Saves the flow (either total flows or flows by origin) in a txt file, with columns `s, t, v1[, v2, ..]`
+        """
+        if "vector" in flow.value_type():
+            # We need to take the 2d array
+            dim=2
+            array = flow.get_2d_array().T
+        else:
+            dim = 1
+            array = flow.get_array().reshape((-1, 1))
+        
+        array = np.hstack((self.get_edges(), array))
+        np.savetxt(os.path.join(folder, "_".join([self.folder_name, str(dim) + "D", name])), array)
+
+    def load_flow(self, name: str, dim = None, folder = "files"):
+        """
+        Load a flow (either total flows or flows by origin) from a txt file, previously saved with the .save_flow method, with columns `s, t, v1[, v2, ..]`
+        """
+        list_of_files = os.listdir(folder)
+        candidates = [f for f in list_of_files if f.split("_")[0] == self.folder_name and "_".join(f.split("_")[2:]) == name]
+        
+        match len(candidates):
+            case 0:
+                print([f for f in list_of_files if f.split("_")[0] == self.folder_name and f.split("_")[2:] == name])
+                raise ValueError(f"No file found with network {self.folder_name} and name {name} in folder {folder}. Found files : {list_of_files}")
+            case 1:
+                file = candidates[0]
+            case _:
+                if dim == None:
+                    raise ValueError(f"More than one file found with network {self.folder_name} and name {name} in folder {folder}. Specify dimension. Found files : {list_of_files}")
+                else:
+                    c = [c for c in candidates if c.split("_")[1][0] == dim]
+                    if len(c) != 1:
+                        raise ValueError(f"No file or more than one file found with the required dimension. Corresponding files found : {candidates}")
+                    else :
+                        file = c[0]
+        
+        array = np.loadtxt(os.path.join(folder, file))
+        dim = int(file.split("_")[1][0])
+        if (array [:, :2] == self.get_edges()).all():
+            if dim==1 :
+                return self.new_edge_property("float", vals = array[:, -1])
+            elif dim==2 :
+                return self.new_edge_property("vector<float>", vals = array[:, 2:])
+            else :
+                raise ValueError(f"Error determining dimension. Found dim={dim} for file {file}")
+        else:
+            if dim==1 :
+                prop = self.new_edge_property("float")
+            elif dim==2 :
+                prop = self.new_edge_property("vector<float>")
+            else :
+                raise ValueError(f"Error determining dimension. Found dim={dim} for file {file}")
+            
+            for e in self.get_edges():
+                value = array[array[:, :2]==e, 2:]
+                #if dim==1:
+                #    value = value[0]
+                prop[e] = value
+
+            return prop
