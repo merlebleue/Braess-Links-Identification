@@ -99,6 +99,7 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
         n_iter = 0
         while n_iter < n_max:
             yield n_iter
+            n_iter += 1
     if verbose >0: #For following the progress
         generator = tqdm(generator())
     else :
