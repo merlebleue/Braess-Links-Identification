@@ -123,8 +123,7 @@ def EMARB(net: Network,
     flows_a = flows.get_2d_array()
     n_nodes, n_edges = flows_a.shape
     
-    # Initialize    
-    # ???? : Update the link proportion for each origin-base bush
+    # Initialize
     chi = np.full(n_nodes, np.inf)
     chi_barre = 0
 
