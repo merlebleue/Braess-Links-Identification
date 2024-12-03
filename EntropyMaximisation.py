@@ -9,7 +9,7 @@ def backward_entropy_maximisation(net: Network, flows_by_o: gt.EdgePropertyMap, 
     """
     TODO :
     - Check condition of n
-    - Change set into list to control the order
+    - Change set into list to control the order ?
     """
     
     # Variable Initialisation
@@ -143,3 +143,72 @@ def EMARB(net: Network,
         chi_barre = chi.sum() / n_nodes
     
     return flows
+
+def get_OD_paths(DO_pairs: dict[int, set[int]], net:Network):
+    # l = net.new_vertex_property("bool", val=False) # Don't need it because replaced with "in Q"
+    paths = {(r,s): []  for s, sources in DO_pairs.items() for r in sources}
+    def DFSPath(k: int):
+        # l[k] = True
+        for i in net.get_in_neighbors(k):
+            if i in Q :
+                #Avoid looping
+                pass
+            else:
+                Q.append(i)
+                if i in sources:
+                    #Found a path to an origin
+                    paths[i,s].append(Q.copy())
+                DFSPath(i)
+                Q.remove(i)
+                # l[i] = False
+    for s, sources in tqdm(DO_pairs.items()):
+        Q = [s]
+        DFSPath(s)
+    return paths
+
+def get_OD_paths_flows(net: Network, OD: np.array, flows_by_origin: gt.EdgePropertyMap, flow_limit: float = 0):
+    # Translate the OD array in a DO_pairs dict of sets {Dest : {Origs}} if flow > 0 :
+    DO_pairs_dict = {}
+    DO_pairs = set()
+    for s in OD.sum(axis=0).nonzero()[0]:
+        DO_pairs_dict[s] = set(OD[:, s].nonzero()[0])
+        DO_pairs.update({(r, s) for r in OD[:, s].nonzero()[0]})
+
+    # Use the get_OD_paths function
+    paths = get_OD_paths(DO_pairs_dict, net)
+
+    # Prepare to compute the flows
+    x_a = flows_by_origin.get_2d_array()
+    n_nodes = x_a.shape[0]
+    n_edges = x_a.shape[1]
+    eta_rj = np.zeros((n_nodes, n_nodes))
+    psi_r_ij = np.zeros(x_a.shape)
+    for j in net.iter_vertices():
+        in_edge_indices = net.get_in_edges(j, [net.edge_index])[:, -1]
+        eta_rj[:, j] = x_a[:, in_edge_indices].sum(axis=1)
+        psi_r_ij[:, in_edge_indices] = np.where(eta_rj[:,[j]] > 0, x_a[:, in_edge_indices]/eta_rj[:,[j]], 0)
+
+    flows = {p : [] for p in DO_pairs}
+    log_entropy = 0.0
+    for r, s in tqdm(DO_pairs):
+        log_entropy += OD[r,s] * np.log(OD[r,s])
+        for path in paths[r,s]:
+            edges = [(path[i], path[i-1]) for i in range(1, len(path))]
+            mask = net.get_edge_mask(edges)
+            flow = OD[r,s] * psi_r_ij[r, mask].prod()
+            if flow > flow_limit:
+                flows[(r,s)].append((path, flow))
+                log_entropy -= flow * np.log(flow)
+
+    return flows, log_entropy
+        
+
+
+            
+            
+    
+            
+
+    
+                
+

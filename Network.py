@@ -128,7 +128,7 @@ class Network(Graph):
         
         match len(candidates):
             case 0:
-                print([f for f in list_of_files if f.split("_")[0] == self.folder_name and f.split("_")[2:] == name])
+                print([(f.split("_")[0], "_".join(f.split("_")[2:])) for f in list_of_files])
                 raise ValueError(f"No file found with network {self.folder_name} and name {name} in folder {folder}. Found files : {list_of_files}")
             case 1:
                 file = candidates[0]
