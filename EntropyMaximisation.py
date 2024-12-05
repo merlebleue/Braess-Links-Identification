@@ -144,29 +144,7 @@ def EMARB(net: Network,
     
     return flows
 
-def get_OD_paths(DO_pairs: dict[int, set[int]], net:Network):
-    # l = net.new_vertex_property("bool", val=False) # Don't need it because replaced with "in Q"
-    paths = {(r,s): []  for s, sources in DO_pairs.items() for r in sources}
-    def DFSPath(k: int):
-        # l[k] = True
-        for i in net.get_in_neighbors(k):
-            if i in Q :
-                #Avoid looping
-                pass
-            else:
-                Q.append(i)
-                if i in sources:
-                    #Found a path to an origin
-                    paths[i,s].append(Q.copy())
-                DFSPath(i)
-                Q.remove(i)
-                # l[i] = False
-    for s, sources in tqdm(DO_pairs.items()):
-        Q = [s]
-        DFSPath(s)
-    return paths
-
-def get_OD_paths_flows(net: Network, OD: np.array, flows_by_origin: gt.EdgePropertyMap, flow_limit: float = 0):
+def get_OD_flows(net: Network, OD: np.array, flows_by_origin: gt.EdgePropertyMap, return_paths = True, flow_limit: float = 1e-14):
     # Translate the OD array in a DO_pairs dict of sets {Dest : {Origs}} if flow > 0 :
     DO_pairs_dict = {}
     DO_pairs = set()
@@ -174,33 +152,62 @@ def get_OD_paths_flows(net: Network, OD: np.array, flows_by_origin: gt.EdgePrope
         DO_pairs_dict[s] = set(OD[:, s].nonzero()[0])
         DO_pairs.update({(r, s) for r in OD[:, s].nonzero()[0]})
 
-    # Use the get_OD_paths function
-    paths = get_OD_paths(DO_pairs_dict, net)
-
     # Prepare to compute the flows
     x_a = flows_by_origin.get_2d_array()
     n_nodes = x_a.shape[0]
-    n_edges = x_a.shape[1]
     eta_rj = np.zeros((n_nodes, n_nodes))
     psi_r_ij = np.zeros(x_a.shape)
     for j in net.iter_vertices():
         in_edge_indices = net.get_in_edges(j, [net.edge_index])[:, -1]
         eta_rj[:, j] = x_a[:, in_edge_indices].sum(axis=1)
         psi_r_ij[:, in_edge_indices] = np.where(eta_rj[:,[j]] > 0, x_a[:, in_edge_indices]/eta_rj[:,[j]], 0)
+    
+    # Create paths and OD flows variables
+    if return_paths:
+        paths = {(r,s): []  for s, sources in DO_pairs_dict.items() for r in sources}
+    OD_flows = np.zeros((*OD.shape, net.num_edges()), dtype=np.float64) # 3D array for O, D, link flow values
 
-    flows = {p : [] for p in DO_pairs}
-    log_entropy = 0.0
-    for r, s in tqdm(DO_pairs):
-        log_entropy += OD[r,s] * np.log(OD[r,s])
-        for path in paths[r,s]:
-            edges = [(path[i], path[i-1]) for i in range(1, len(path))]
-            mask = net.get_edge_mask(edges)
-            flow = OD[r,s] * psi_r_ij[r, mask].prod()
-            if flow > flow_limit:
-                flows[(r,s)].append((path, flow))
-                log_entropy -= flow * np.log(flow)
 
-    return flows, log_entropy
+    # Prepare alg. 4 to get the paths
+    def DFSPath(k: int):
+        for r in net.get_in_neighbors(k):
+            if r in Q :
+                #Avoid looping
+                pass
+            else:
+                edges.append((Q[-1], r))
+                Q.append(r)
+                if r in sources:
+                    # Found a path to an origin
+
+                    # Compute the flows
+                    mask = net.get_edge_mask(edges)
+                    flow = OD[r,s] * psi_r_ij[r, mask].prod()
+
+                    # Save it in the paths variable
+                    if flow > flow_limit and return_paths:
+                        paths[(r,s)].append((Q.copy(), flow))
+
+                    # Save it in the OD_flows array
+                    if flow > flow_limit:
+                        OD_flows[r,s,mask] += flow
+
+                DFSPath(r)
+                Q.remove(r)
+                edges.pop()
+
+    # Run the algorithm
+    for s, sources in tqdm(DO_pairs_dict.items()):
+        Q = [s]
+        edges = []
+        DFSPath(s)
+
+    # Return OD_flows and paths if asked
+    if return_paths:
+        return OD_flows, paths
+    
+    # Return OD_flows otherwise
+    return OD_flows
         
 
 

@@ -104,19 +104,37 @@ class Network(Graph):
         mask = (edge_array[:,None] == edges_list).all(2).any(1)
         return mask
     
-    def save_flow(self, flow: EdgePropertyMap, name: str, folder = "files"):
+    def save_flow(self, flow: EdgePropertyMap | np.ndarray, name: str, folder = "files"):
         """
         Saves the flow (either total flows or flows by origin) in a txt file, with columns `s, t, v1[, v2, ..]`
         """
-        if "vector" in flow.value_type():
+        if isinstance(flow, np.ndarray):
+            # 3d array
+            dim=3
+
+            # Get the shape of the 3D array
+            n_rows, n_cols, n_depth = flow.shape
+
+            # Generate indices j and k
+            j, k = np.meshgrid(np.arange(n_rows), np.arange(n_cols), indexing='ij')
+
+            # Flatten the arrays to iterate easily
+            j = j.flatten()
+            k = k.flatten()
+            values = flow[j, k]
+
+            # Stack j, k, and the values along the second axis to create the 2D array
+            array = np.hstack((j[:, np.newaxis], k[:, np.newaxis], values))
+        elif "vector" in flow.value_type():
             # We need to take the 2d array
             dim=2
             array = flow.get_2d_array().T
+            array = np.hstack((self.get_edges(), array))
         else:
             dim = 1
             array = flow.get_array().reshape((-1, 1))
+            array = np.hstack((self.get_edges(), array))
         
-        array = np.hstack((self.get_edges(), array))
         np.savetxt(os.path.join(folder, "_".join([self.folder_name, str(dim) + "D", name])), array)
 
     def load_flow(self, name: str, dim = None, folder = "files"):
@@ -152,12 +170,30 @@ class Network(Graph):
             else :
                 raise ValueError(f"Error determining dimension. Found dim={dim} for file {file}")
         else:
-            if dim==1 :
-                prop = self.new_edge_property("float")
-            elif dim==2 :
-                prop = self.new_edge_property("vector<float>")
-            else :
-                raise ValueError(f"Error determining dimension. Found dim={dim} for file {file}")
+            match dim:
+                case 1 :
+                    prop = self.new_edge_property("float")
+                case 2 :
+                    prop = self.new_edge_property("vector<float>")
+                case 3:
+                    # 3D array encoded as 2D array
+
+                    # Extract j, k, and values
+                    j = array[:, 0].astype(int)
+                    k = array[:, 1].astype(int)
+                    values = array[:, 2:]
+
+                    # Determine the shape of the original 3D array
+                    n_rows = j.max() + 1
+                    n_cols = k.max() + 1
+                    n_depth = values.shape[1]
+
+                    # Reconstruct the 3D array
+                    array = np.zeros((n_rows, n_cols, n_depth))
+                    array[j, k] = values
+                    return array
+                case _:
+                    raise ValueError(f"Error determining dimension. Found dim={dim} for file {file}")
             
             for e in self.get_edges():
                 value = array[array[:, :2]==e, 2:]
@@ -166,3 +202,44 @@ class Network(Graph):
                 prop[e] = value
 
             return prop
+        
+    def export_flow(self, flow: EdgePropertyMap | np.ndarray, name: str, folder = "exports", OD_demand=None):
+        """
+        Exports the flow (either total flows or flows by origin) in a formatted txt file, with columns `s, t, v1[, v2, ..]`
+        """
+        if isinstance(flow, np.ndarray):
+            # 3d array
+            dim=3
+
+            # Get the shape of the 3D array
+            n_rows, n_cols, n_depth = flow.shape
+
+            # Generate indices j and k
+            j, k = np.meshgrid(np.arange(n_rows), np.arange(n_cols), indexing='ij')
+
+            # Flatten the arrays to iterate easily
+            j = j.flatten()
+            k = k.flatten()
+            values = flow[j, k]
+
+            # Stack j, k, and the values along the second axis to create the 2D array
+            array = np.hstack((j[:, np.newaxis], k[:, np.newaxis], values))
+            if OD_demand is None:
+                df = pd.DataFrame(array[:, 2:], columns=pd.MultiIndex.from_tuples([(i,j) for i,j in self.get_edges()], names = ["i", "j"]), index=pd.MultiIndex.from_arrays([array[:, 0].astype("int"), array[:, 1].astype("int")], names = ["O", "D"])).T
+                df = df.rename(columns="{: >8}".format)
+            else:
+                df = pd.DataFrame(array[:, 2:], columns=pd.MultiIndex.from_tuples([(i,j) for i,j in self.get_edges()], names = ["i", "j"]), index=pd.MultiIndex.from_tuples([(f"{o:^3}->{d:3}", f"{OD_demand[o,d]:8.2f}") for o, d in array[:, :2].astype("int")], names = ["o>d", "tot"])).T
+        elif "vector" in flow.value_type():
+            # We need to take the 2d array
+            dim=2
+            array = flow.get_2d_array().T
+            #array = np.hstack((self.get_edges(), array))
+            df = pd.DataFrame(array, columns = [f"{r: >8}" for r in self.get_vertices()], index=pd.MultiIndex.from_arrays(self.get_edges().T.tolist(), names = ["i", "j"]))
+            df.columns.name = "o"
+        else:
+            dim = 1
+            array = flow.get_array()
+            #array = np.hstack((self.get_edges(), array))
+            df = pd.Series(array, name = name, index=pd.MultiIndex.from_arrays(self.get_edges().T.tolist(), names = ["i", "j"]))
+        
+        df.to_csv(os.path.join(folder, "_".join([self.folder_name, str(dim) + "D", name])), sep="\t", float_format="%8.2g")
