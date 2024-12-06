@@ -254,4 +254,17 @@ class Network(Graph):
             #array = np.hstack((self.get_edges(), array))
             df = pd.Series(array, name = name, index=pd.MultiIndex.from_arrays(self.get_edges().T.tolist(), names = ["i", "j"]))
         
-        df.to_csv(os.path.join(folder, "_".join([self.folder_name, str(dim) + "D", name])), sep="\t", float_format="%8.2g")
+        df.to_csv(os.path.join(folder, "_".join([self.folder_name, str(dim) + "D", name])), sep="\t", float_format="%8.3g")
+
+    def export_paths(self, paths, OD_demand, name="paths", folder="exports"):
+        str = ""
+        for (r,s), paths_list in paths.items():
+            str += f"{r:3d} -> {s:3d} ({OD_demand[r, s]}):\n"
+            for path, flow in paths_list:
+                    str += f"\t{flow:8.3g} : {path}\n"
+            str += "\n"
+
+        with open(os.path.join(folder, "_".join([self.folder_name, name]) + ".txt"), "w") as f:
+                  f.write(str)
+        return str
+    
