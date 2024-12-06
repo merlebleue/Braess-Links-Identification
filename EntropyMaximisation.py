@@ -175,7 +175,7 @@ def get_OD_flows(net: Network, OD: np.array, flows_by_origin: gt.EdgePropertyMap
                 #Avoid looping
                 pass
             else:
-                edges.append((Q[-1], r))
+                edges.append((r, Q[-1]))
                 Q.append(r)
                 if r in sources:
                     # Found a path to an origin

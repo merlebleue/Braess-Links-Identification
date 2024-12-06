@@ -72,7 +72,7 @@ class Network(Graph):
         if "flow" in files:
             self.TNTP_flows = pd.read_csv(files["flow"], sep='\t')
 
-    def draw(self, interactive=False, flows: EdgePropertyMap =None, flows_by_o = None, o=None, **kwargs):
+    def draw(self, interactive=False, flows: EdgePropertyMap =None, flows_by_o = None, flows_by_OD = None, o=None, d=None, **kwargs):
         draw_function = interactive_window if interactive else graph_draw
         
         options = dict(ink_scale=0.5,
@@ -82,6 +82,18 @@ class Network(Graph):
 
         for k, i in kwargs.items():
             options[k] = i
+
+        if isinstance(flows_by_OD, np.ndarray):
+            if d == None:
+                flows_by_OD = flows_by_OD.sum(axis=1)
+            else:
+                flows_by_OD = flows_by_OD[:, d, :]
+            if o == None:
+                flows_by_OD = flows_by_OD.sum(axis=0)
+            else:
+                flows_by_OD=flows_by_OD[o]
+
+            flows = self.new_edge_property("float", vals = flows_by_OD)
 
         if flows_by_o != None:
             if type(o) == int:
