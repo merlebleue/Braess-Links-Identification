@@ -254,7 +254,7 @@ class Network(Graph):
             #array = np.hstack((self.get_edges(), array))
             df = pd.Series(array, name = name, index=pd.MultiIndex.from_arrays(self.get_edges().T.tolist(), names = ["i", "j"]))
         
-        df.to_csv(os.path.join(folder, "_".join([self.folder_name, str(dim) + "D", name])), sep="\t", float_format="%8.3g")
+        df.to_csv(os.path.join(folder, "_".join([self.folder_name, str(dim) + "D", name])), sep="\t", float_format="%8.2f")
 
     def export_paths(self, paths, OD_demand, name="paths", folder="exports"):
         str = ""
