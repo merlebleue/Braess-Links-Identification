@@ -174,36 +174,38 @@ class Network(Graph):
         
         array = np.loadtxt(os.path.join(folder, file))
         dim = int(file.split("_")[1][0])
+        if dim==3:
+            # 3D array encoded as 2D array
+
+            # Extract j, k, and values
+            j = array[:, 0].astype(int)
+            k = array[:, 1].astype(int)
+            values = array[:, 2:]
+
+            # Determine the shape of the original 3D array
+            n_rows = j.max() + 1
+            n_cols = k.max() + 1
+            n_depth = values.shape[1]
+
+            # Reconstruct the 3D array
+            array = np.zeros((n_rows, n_cols, n_depth))
+            array[j, k] = values
+            return array
+
         if (array [:, :2] == self.get_edges()).all():
-            if dim==1 :
-                return self.new_edge_property("float", vals = array[:, -1])
-            elif dim==2 :
-                return self.new_edge_property("vector<float>", vals = array[:, 2:])
-            else :
-                raise ValueError(f"Error determining dimension. Found dim={dim} for file {file}")
+            match dim:
+                case 1:
+                    return self.new_edge_property("float", vals = array[:, -1])
+                case 2 :
+                    return self.new_edge_property("vector<float>", vals = array[:, 2:])
+                case _ :
+                    raise ValueError(f"Error determining dimension. Found dim={dim} for file {file}")
         else:
             match dim:
                 case 1 :
                     prop = self.new_edge_property("float")
                 case 2 :
                     prop = self.new_edge_property("vector<float>")
-                case 3:
-                    # 3D array encoded as 2D array
-
-                    # Extract j, k, and values
-                    j = array[:, 0].astype(int)
-                    k = array[:, 1].astype(int)
-                    values = array[:, 2:]
-
-                    # Determine the shape of the original 3D array
-                    n_rows = j.max() + 1
-                    n_cols = k.max() + 1
-                    n_depth = values.shape[1]
-
-                    # Reconstruct the 3D array
-                    array = np.zeros((n_rows, n_cols, n_depth))
-                    array[j, k] = values
-                    return array
                 case _:
                     raise ValueError(f"Error determining dimension. Found dim={dim} for file {file}")
             

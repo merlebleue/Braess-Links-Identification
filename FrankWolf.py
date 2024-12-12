@@ -52,7 +52,13 @@ def shortest_path(net: Network, times: gt.EdgePropertyMap, origin: int, n_max=1e
 def BTR_cost_function(flows_array: np.array, net: Network):
     computed_times = net.new_edge_property("float")
     get = lambda s : net.ep[s].a
-    computed_times.a = get("free_flow_time") * (1 + get("b") * (flows_array/get("capacity"))**get("power"))
+    computed_times.a = get("free_flow_time") * (1 + get("b") * ((flows_array/get("capacity"))**get("power")))
+    return computed_times
+
+def BTR_marginal_cost_function(flows_array: np.array, net: Network):
+    computed_times = net.new_edge_property("float")
+    get = lambda s : net.ep[s].a
+    computed_times.a = get("free_flow_time") * get("b") * get("power") * ((flows_array)**(get("power")-1)) / (get("capacity")**get("power"))
     return computed_times
 
 def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-4, verbose=0):
