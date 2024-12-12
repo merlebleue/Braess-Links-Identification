@@ -132,7 +132,7 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
         if verbose > 2: #Debug
             print(total_flows.a)
             print(direction.a)
-        alpha = bisect(lambda a : z_prime_function(a, total_flows, direction, net), 0, 1, disp=True)
+        alpha = bisect(lambda a : get_z_prime(a, total_flows, direction, net), 0, 1, disp=True)
 
         # Update
         flows_by_o.set_2d_array(flows_by_o.get_2d_array() + alpha*(direction_by_o.get_2d_array() - flows_by_o.get_2d_array()))
