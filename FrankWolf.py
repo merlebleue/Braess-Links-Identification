@@ -55,7 +55,24 @@ def BTR_cost_function(flows_array: np.array, net: Network):
     computed_times.a = get("free_flow_time") * (1 + get("b") * (flows_array/get("capacity"))**get("power"))
     return computed_times
 
-def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-4, verbose=0):
+def BTR_prime_cost_function(flows_array: np.array, net: Network):
+    computed_times = net.new_edge_property("float")
+    get = lambda s : net.ep[s].a
+    computed_times.a = get("free_flow_time") * get("b") * get("power") / (get("capacity")**get("power")) * ((flows_array)**(get("power")-1))
+    return computed_times
+
+def UE_z_prime_function(alpha: float, flows: gt.EdgePropertyMap, direction: gt.EdgePropertyMap, net: Network):
+        times = BTR_cost_function(flows.a + alpha*(direction.a - flows.a), net)
+        return ((direction.a - flows.a) * times.a).sum()
+
+def SO_z_prime_function(alpha: float, flows: gt.EdgePropertyMap, direction: gt.EdgePropertyMap, net: Network):
+        flows_alpha = flows.a + alpha*(direction.a - flows.a)
+        times = BTR_cost_function(flows_alpha, net)
+        times_prime = BTR_prime_cost_function(flows_alpha, net)
+        return ( (direction.a - flows.a) * (times.a + flows_alpha * times_prime.a) ).sum()
+
+
+def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, z_prime_function = UE_z_prime_function, n_max=1e5, tolerance=1e-4, verbose=0):
     
     def direction_search(times : gt.EdgePropertyMap):
         """
@@ -80,16 +97,12 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
         computed_flows.set_2d_array(flows_array)
 
         return computed_flows
-    
-    def get_z_prime(alpha: float, flows: gt.EdgePropertyMap, direction: gt.EdgePropertyMap):
-        times = BTR_cost_function(flows.a + alpha*(direction.a - flows.a), net)
-        return ((direction.a - flows.a) * times.a).sum()
 
     # Initialisation
     flows_by_o = net.new_edge_property("vector<float>", vals=np.zeros((net.num_edges(), net.num_vertices())))
     total_flows = net.new_edge_property("float", vals=flows_by_o.get_2d_array().sum(axis=0))
 
-    times = BTR_cost_function(total_flows.a, net)
+    times = cost_function(total_flows.a, net)
 
     flows_by_o = direction_search(times) #First all-or-nothing assignment
     total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
@@ -107,7 +120,7 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
     for n_iter in generator:
 
         # Update time
-        times = BTR_cost_function(total_flows.a, net)
+        times = cost_function(total_flows.a, net)
 
         # Direction search
         direction_by_o = direction_search(times)
@@ -126,121 +139,11 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
         if verbose > 2: #Debug
             print(total_flows.a)
             print(direction.a)
-        alpha = bisect(lambda a : get_z_prime(a, total_flows, direction), 0, 1, disp=True)
+        alpha = bisect(lambda a : z_prime_function(a, total_flows, direction, net), 0, 1, disp=True)
 
         # Update
         flows_by_o.set_2d_array(flows_by_o.get_2d_array() + alpha*(direction_by_o.get_2d_array() - flows_by_o.get_2d_array()))
         total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
 
 
-    return flows_by_o, total_flows
-
-def frankwolf_by_origin(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-4, verbose=0):
-    # Work in progress
-
-    def direction_search(times : gt.EdgePropertyMap, flows : gt.EdgePropertyMap, origin: int):
-        """
-            Performs all-or-nothing assignment based on the 'times' edge property for the given origin
-            Returns :
-            - computed_flows : an EdgePropertyMap, which countains for each edge a vector with the flow from each origin
-        """
-        computed_flows = net.new_edge_property("vector<float>", vals=np.zeros((net.num_edges(), net.num_vertices())))
-        flows_array = flows.get_2d_array()
-
-        # For the given origin
-        o = origin
-        #Reset the flows
-        flows_array[o, :] = 0
-        # Use shortest path algorithm to get list of links for each destination
-        paths,_ = shortest_path_alg(net, times, o)
-        # Convert list of links to numpy mask
-        paths_mask = {k : net.get_edge_mask(i) for k,i in paths.items()}
-        # Add flow of each destination to each link in its path
-        for d, edge_mask in paths_mask.items():
-            flows_array[o, edge_mask] += OD[o, d]
-        
-        # Set the array to the edge property
-        computed_flows.set_2d_array(flows_array)
-
-        return computed_flows
-    
-    def shortest_path_flows(times : gt.EdgePropertyMap):
-        """
-            Performs all-or-nothing assignment based on the 'times' edge property
-            Returns :
-            - computed_flows : an EdgePropertyMap, which countains for each edge a vector with the flow from each origin
-        """
-        computed_flows = net.new_edge_property("vector<float>", vals=np.zeros((net.num_edges(), net.num_vertices())))
-        flows_array = computed_flows.get_2d_array()
-
-        # For each origin
-        for o in range(OD.shape[0]):
-            # Use shortest path algorithm to get list of links for each destination
-            paths,_ = shortest_path_alg(net, times, o)
-            # Convert list of links to numpy mask
-            paths_mask = {k : net.get_edge_mask(i) for k,i in paths.items()}
-            # Add flow of each destination to each link in its path
-            for d, edge_mask in paths_mask.items():
-                flows_array[o, edge_mask] += OD[o, d]
-        
-        # Set the array to the edge property
-        computed_flows.set_2d_array(flows_array)
-
-        return computed_flows
-    
-    def get_z_prime(alpha: float, flows: gt.EdgePropertyMap, direction: gt.EdgePropertyMap):
-        times = BTR_cost_function(flows.a + alpha*(direction.a - flows.a), net)
-        return ((direction.a - flows.a) * times.a).sum()
-
-    # Initialisation
-    flows_by_o = net.new_edge_property("vector<float>", vals=np.zeros((net.num_edges(), net.num_vertices())))
-    total_flows = net.new_edge_property("float", vals=flows_by_o.get_2d_array().sum(axis=0))
-
-    # Initial trafic assignment, by origin
-    for o in range(OD.shape[0]):
-        times = BTR_cost_function(total_flows.a, net)
-
-        flows_by_o.set_2d_array(direction_search(times, flows_by_o, o).get_2d_array() + flows_by_o.get_2d_array())
-        total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
-
-    def generator():
-        n_iter = 0
-        while n_iter < n_max:
-            yield n_iter
-    if verbose >0: #For following the progress
-        generator = tqdm(generator())
-    else :
-        generator = generator()
-    for n_iter in generator:
-
-        iterator = tqdm(range(OD.shape[0])) if verbose >0 else range(OD.shape[0])
-        for o in iterator:
-            # Update time
-            times = BTR_cost_function(total_flows.a, net)
-
-            # Direction search
-            direction_by_o = direction_search(times, flows_by_o, o)
-            direction = net.new_edge_property("float", vals=direction_by_o.get_2d_array().sum(axis=0))
-
-            # Line search
-            if verbose > 1: #Debug
-                print(total_flows.a)
-                print(direction.a)
-            alpha = bisect(lambda a : get_z_prime(a, total_flows, direction), 0, 1, disp=True)
-
-            # Update
-            flows_by_o.set_2d_array(flows_by_o.get_2d_array() + alpha*(direction_by_o.get_2d_array() - flows_by_o.get_2d_array()))
-            total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
-
-        # Convergence
-        times = BTR_cost_function(total_flows.a, net)
-        sp_flows = shortest_path_flows(times).get_2d_array().sum(axis=0)
-        relative_error = abs( 1 - ( (times.a * sp_flows).sum()/(times.a * total_flows.a).sum() ) )
-        if verbose > 1: #Debug
-            print(n_iter, relative_error)
-        if verbose > 0:
-            generator.set_postfix({"Relative error" : f"{relative_error:.2e}"})
-        if relative_error <= tolerance:
-            break
-    
     return flows_by_o, total_flows
