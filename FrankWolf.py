@@ -82,14 +82,14 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
         return computed_flows
     
     def get_z_prime(alpha: float, flows: gt.EdgePropertyMap, direction: gt.EdgePropertyMap):
-        times = BTR_cost_function(flows.a + alpha*(direction.a - flows.a), net)
+        times = cost_function(flows.a + alpha*(direction.a - flows.a), net)
         return ((direction.a - flows.a) * times.a).sum()
 
     # Initialisation
     flows_by_o = net.new_edge_property("vector<float>", vals=np.zeros((net.num_edges(), net.num_vertices())))
     total_flows = net.new_edge_property("float", vals=flows_by_o.get_2d_array().sum(axis=0))
 
-    times = BTR_cost_function(total_flows.a, net)
+    times = cost_function(total_flows.a, net)
 
     flows_by_o = direction_search(times) #First all-or-nothing assignment
     total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
@@ -107,7 +107,7 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
     for n_iter in generator:
 
         # Update time
-        times = BTR_cost_function(total_flows.a, net)
+        times = cost_function(total_flows.a, net)
 
         # Direction search
         direction_by_o = direction_search(times)
