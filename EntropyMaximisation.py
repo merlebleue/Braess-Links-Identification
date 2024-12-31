@@ -208,8 +208,6 @@ def get_OD_flows(net: Network, OD: np.array, flows_by_origin: gt.EdgePropertyMap
     
     # Return OD_flows otherwise
     return OD_flows
-        
-
 
             
             

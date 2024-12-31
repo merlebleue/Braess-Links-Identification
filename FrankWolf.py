@@ -4,7 +4,7 @@ import numpy as np
 from scipy.optimize import bisect
 from tqdm.notebook import tqdm
 
-def shortest_path(net: Network, times: gt.EdgePropertyMap, origin: int, n_max=1e5):
+def shortest_path(net: Network, times: gt.EdgePropertyMap, origin: int, destination: int = None, n_max=1e5):
     labels = net.new_vertex_property("float", np.inf)
     predecessor = net.new_vertex_property("int", -1)
     sequence = {origin}
@@ -30,23 +30,33 @@ def shortest_path(net: Network, times: gt.EdgePropertyMap, origin: int, n_max=1e
         # Update the sequence set
         sequence.update(improved_nodes)
 
-    # Get a predecessors and links list for each destination:
-    predecessors = {}
-    links = {}
-    for j,i in net.iter_vertices([predecessor]):
-        if j == origin:
-            pass
-        elif i in predecessors :
-            predecessors[j] = predecessors[i] + [i]
-            links[j] = links[i] + [[i, j]]
-        else :
-            predecessors[j] = [i]
-            links[j] = [[i, j]]
-            while i != origin :
-                links[j] += [[predecessor[i], i]]
-                i = predecessor[i]
-                predecessors[j] = [i] + predecessors[j]
-            
+    if destination is None:
+        # Get a predecessors and links list for each destination:
+        predecessors = {}
+        links = {}
+        for j,i in net.iter_vertices([predecessor]):
+            if j == origin:
+                pass
+            elif i in predecessors :
+                predecessors[j] = predecessors[i] + [i]
+                links[j] = links[i] + [[i, j]]
+            else :
+                predecessors[j] = [i]
+                links[j] = [[i, j]]
+                while i != origin :
+                    links[j] += [[predecessor[i], i]]
+                    i = predecessor[i]
+                    predecessors[j] = [i] + predecessors[j]
+    else:
+        # Get the predecessors and links list for the destination specified
+        i = predecessor[destination]
+        predecessors = [i]
+        links = [[i, destination]]
+        while i != origin :
+            links += [[predecessor[i], i]]
+            i = predecessor[i]
+            predecessors = [i] + predecessors
+
     return links, predecessors
 
 def BTR_cost_function(flows_array: np.array, net: Network):
@@ -61,7 +71,7 @@ def BTR_marginal_cost_function(flows_array: np.array, net: Network):
     computed_times.a = get("free_flow_time") * get("b") * get("power") * ((flows_array)**(get("power")-1)) / (get("capacity")**get("power"))
     return computed_times
 
-def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, n_max=1e5, tolerance=1e-4, verbose=0):
+def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, OD_mask = {}, n_max=1e5, tolerance=1e-4, verbose=0):
     
     def direction_search(times : gt.EdgePropertyMap):
         """
@@ -78,6 +88,11 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
             paths,_ = shortest_path_alg(net, times, o)
             # Convert list of links to numpy mask
             paths_mask = {k : net.get_edge_mask(i) for k,i in paths.items()}
+            # This sections allows the user to remove some edges for specific OD pairs.
+            d_masked = {d for r,d in OD_mask if r == o}
+            for d in d_masked:
+                paths, _ = shortest_path_alg(gt.GraphView(net, efilt=OD_mask[(o, d)]), times, origin=o, destination=d)
+                paths_mask[d] = net.get_edge_mask(paths)
             # Add flow of each destination to each link in its path
             for d, edge_mask in paths_mask.items():
                 flows_array[o, edge_mask] += OD[o, d]
@@ -132,7 +147,7 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
         if verbose > 2: #Debug
             print(total_flows.a)
             print(direction.a)
-        alpha = bisect(lambda a : get_z_prime(a, total_flows, direction, net), 0, 1, disp=True)
+        alpha = bisect(lambda a : get_z_prime(a, total_flows, direction), 0, 1, disp=True)
 
         # Update
         flows_by_o.set_2d_array(flows_by_o.get_2d_array() + alpha*(direction_by_o.get_2d_array() - flows_by_o.get_2d_array()))

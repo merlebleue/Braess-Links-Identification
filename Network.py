@@ -61,7 +61,7 @@ class Network(Graph):
         else:
             super().__init__(len(net["init_node"].unique()), *args, **kargs)
         
-        # Add edge and edge properties
+        # Add edges and edge properties
         properties_types = ["long" if i.kind == "i" else "float" for i in net.dtypes]
         edge_properties= list(zip(net.columns, properties_types))[2:]
         net[["init_node", "term_node"]] -= 1 #Start at 0 instead of 1
