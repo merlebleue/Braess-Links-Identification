@@ -44,6 +44,8 @@ def try_removing_braess(
     
     df["Improvement"] = df["Total Travel Time"] - compute_total_travel_time(net, UE_OD_flows.sum(axis=(0, 1)))
 
+    df = df.set_index(["o", "d"])
+    df[["Total Travel Time", "Improvement"]] = df[["Total Travel Time", "Improvement"]].astype("float")
     df.to_csv(os.path.join(export_folder, "_".join([net.folder_name, "comparison"])), sep="\t", float_format="%8.2f")
 
     return df
