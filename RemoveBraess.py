@@ -42,7 +42,7 @@ def try_removing_braess(
             compute_total_travel_time(net, masked_flows.a)
         ]
     
-    df["Improvement"] = df["Total Travel Time"] - compute_total_travel_time(net, UE_OD_flows.sum(axis=(0, 1)))
+    df["Improvement"] = compute_total_travel_time(net, UE_OD_flows.sum(axis=(0, 1))) - df["Total Travel Time"] 
 
     df = df.set_index(["o", "d"])
     df[["Total Travel Time", "Improvement"]] = df[["Total Travel Time", "Improvement"]].astype("float")
