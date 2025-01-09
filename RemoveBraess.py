@@ -23,9 +23,10 @@ def try_removing_braess(
     mask = masking_rule(UE_OD_flows, SO_OD_flows)
 
     df = pd.DataFrame(columns=["o", "d", "Removed links", "N Removed Links", "Total Travel Time"])
+    start_flows = net.new_edge_property("vector<float>", UE_OD_flows.sum(axis=1).T)
 
-    for o, d in tqdm(zip(*np.where(mask.sum(axis=2)>0))):
-        masked_by_origin, masked_flows = frankwolf(net, net.trips, OD_mask={(o,d) : ~mask[o,d]}, verbose=0, tolerance= 1e-4, n_max=2e5)
+    for o, d in tqdm(list(zip(*np.where(mask.sum(axis=2)>0)))):
+        masked_by_origin, masked_flows = frankwolf(net, net.trips, OD_mask={(o,d) : ~mask[o,d]}, start_flows=start_flows, verbose=1, tolerance= 1e-4, n_max=2e5)
         
         # Save and export the flows
         net.save_flow(masked_by_origin, name_pattern.format(o=o, d=d), folder=save_folder)

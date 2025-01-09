@@ -71,7 +71,7 @@ def BTR_marginal_cost_function(flows_array: np.array, net: Network):
     computed_times.a = get("free_flow_time") * get("b") * get("power") * ((flows_array)**(get("power")-1)) / (get("capacity")**get("power"))
     return computed_times
 
-def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, OD_mask = {}, n_max=1e5, tolerance=1e-4, verbose=0):
+def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, cost_function = BTR_cost_function, OD_mask = {}, start_flows: gt.EdgePropertyMap = None, n_max=1e5, tolerance=1e-4, verbose=0):
     
     def direction_search(times : gt.EdgePropertyMap):
         """
@@ -114,6 +114,19 @@ def frankwolf(net: Network, OD : np.array, shortest_path_alg = shortest_path, co
 
     flows_by_o = direction_search(times) #First all-or-nothing assignment
     total_flows.a = flows_by_o.get_2d_array().sum(axis=0)
+
+    # If start_flows provided :
+    if start_flows is not None:
+        flows_by_o_array = flows_by_o.get_2d_array()
+        start_flows_array = start_flows.get_2d_array()
+
+        mask = [o not in {r for (r,s) in OD_mask} for o in range(net.num_vertices())]
+
+        flows_by_o_array[mask, :] = start_flows_array[mask, :]
+
+
+        flows_by_o.set_2d_array(flows_by_o_array)
+        total_flows.a = flows_by_o_array.sum(axis=0)
 
     #Loop
     def generator():
