@@ -5,7 +5,7 @@ from EntropyMaximisation import *
 import graph_tool as gt
 import numpy as np 
 import pandas as pd
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 import os
 
 def compute_total_travel_time(net: Network, flows_array: np.ndarray, cost_function = BTR_cost_function):
@@ -98,5 +98,22 @@ def try_removing_braess_1_OD(
     df.to_csv(os.path.join(export_folder, "_".join([net.folder_name, "comparison_1link"])), sep="\t", float_format="%8.2f")
 
     return df
+
+def remove_1link_1OD(
+        net: Network,
+        OD_flow: np.ndarray,
+        save_folder: str = "files/masked",
+        export_folder: str = "exports/masked",
+        name_pattern = "o{o}d{d}l{l}",
+):
+    
+    for o, d, l in tqdm(list(zip(*np.where(OD_flow>0)))):
+        masked_by_origin, masked_flows = frankwolf(net, net.trips, OD_mask={(o,d) : mask_l}, verbose=0, tolerance= 1e-4, n_max=2e5)
+
+        # Save and export the flows
+        net.save_flow(masked_by_origin, name_pattern.format(o=o, d=d, l=l), folder=save_folder)
+        net.save_flow(masked_flows, name_pattern.format(o=o, d=d, l=l), folder=save_folder)
+        net.export_flow(masked_by_origin, name_pattern.format(o=o, d=d, l=l), folder=export_folder)
+        net.export_flow(masked_flows, name_pattern.format(o=o, d=d, l=l), folder=export_folder)
 
     
