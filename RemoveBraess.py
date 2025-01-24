@@ -108,6 +108,8 @@ def remove_1link_1OD(
 ):
     
     for o, d, l in tqdm(list(zip(*np.where(OD_flow>0)))):
+        mask_l = np.full(net.num_edges(), True)
+        mask_l[l] = False
         masked_by_origin, masked_flows = frankwolf(net, net.trips, OD_mask={(o,d) : mask_l}, verbose=0, tolerance= 1e-4, n_max=2e5)
 
         # Save and export the flows
