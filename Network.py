@@ -164,7 +164,7 @@ class Network(Graph):
             dim = 1
             array = flow.get_array().reshape((-1, 1))
             array = np.hstack((self.get_edges(), array))
-        
+
         np.savetxt(os.path.join(folder, "_".join([self.folder_name, str(dim) + "D", name])), array)
 
     def load_flow(self, name: str, dim = None, folder = "files"):
@@ -257,33 +257,31 @@ class Network(Graph):
             # Stack j, k, and the values along the second axis to create the 2D array
             array = np.hstack((j[:, np.newaxis], k[:, np.newaxis], values))
             if OD_demand is None:
-                df = pd.DataFrame(array[:, 2:], columns=pd.MultiIndex.from_tuples([(i,j) for i,j in self.get_edges()], names = ["i", "j"]), index=pd.MultiIndex.from_arrays([array[:, 0].astype("int"), array[:, 1].astype("int")], names = ["O", "D"])).T
+                df = pd.DataFrame(array[:, 2:], columns=pd.MultiIndex.from_tuples([(i+1,j+1) for i,j in self.get_edges()], names = ["i", "j"]), index=pd.MultiIndex.from_arrays([array[:, 0].astype("int")+1, array[:, 1].astype("int")+1], names = ["O", "D"])).T
                 df = df.rename(columns="{: >8}".format)
             else:
-                df = pd.DataFrame(array[:, 2:], columns=pd.MultiIndex.from_tuples([(i,j) for i,j in self.get_edges()], names = ["i", "j"]), index=pd.MultiIndex.from_tuples([(f"{o:^3}->{d:3}", f"{OD_demand[o,d]:8.2f}") for o, d in array[:, :2].astype("int")], names = ["o>d", "tot"])).T
+                df = pd.DataFrame(array[:, 2:], columns=pd.MultiIndex.from_tuples([(i+1,j+1) for i,j in self.get_edges()], names = ["i", "j"]), index=pd.MultiIndex.from_tuples([(f"{o+1:^3}->{d+1:3}", f"{OD_demand[o,d]:8.2f}") for o, d in array[:, :2].astype("int")], names = ["o>d", "tot"])).T
         elif "vector" in flow.value_type():
             # We need to take the 2d array
             dim=2
             array = flow.get_2d_array().T
             #array = np.hstack((self.get_edges(), array))
-            df = pd.DataFrame(array, columns = [f"{r: >8}" for r in self.get_vertices()], index=pd.MultiIndex.from_arrays(self.get_edges().T.tolist(), names = ["i", "j"]))
+            df = pd.DataFrame(array, columns = [f"{r+1: >8}" for r in self.get_vertices()], index=pd.MultiIndex.from_arrays((self.get_edges()+1).T.tolist(), names = ["i", "j"]))
             df.columns.name = "o"
         else:
             dim = 1
             array = flow.get_array()
             #array = np.hstack((self.get_edges(), array))
-            df = pd.Series(array, name = name, index=pd.MultiIndex.from_arrays(self.get_edges().T.tolist(), names = ["i", "j"]))
+            df = pd.Series(array, name = name, index=pd.MultiIndex.from_arrays((self.get_edges()+1).T.tolist(), names = ["i", "j"]))
 
-        
-        
         df.to_csv(os.path.join(folder, "_".join([self.folder_name, str(dim) + "D", name])), sep="\t", float_format="%8.2f")
 
     def export_paths(self, paths, OD_demand, name="paths", folder="exports"):
         str = ""
         for (r,s), paths_list in paths.items():
-            str += f"{r:3d} -> {s:3d} ({OD_demand[r, s]}):\n"
+            str += f"{r+1:3d} -> {s+1:3d} ({OD_demand[r, s]}):\n"
             for path, flow in paths_list:
-                    str += f"\t{flow:8.3g} : {path}\n"
+                    str += f"\t{flow:8.3g} : {[n+1 for n in path]}\n"
             str += "\n"
 
         with open(os.path.join(folder, "_".join([self.folder_name, name]) + ".txt"), "w") as f:
