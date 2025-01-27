@@ -2,7 +2,7 @@ from Network import Network
 import graph_tool as gt
 import numpy as np 
 from scipy.optimize import bisect
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 def shortest_path(net: Network, times: gt.EdgePropertyMap, origin: int, destination: int = None, n_max=1e5):
     labels = net.new_vertex_property("float", np.inf)

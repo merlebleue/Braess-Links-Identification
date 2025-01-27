@@ -3,7 +3,7 @@ from FrankWolf import *
 
 import graph_tool as gt
 import numpy as np 
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 def backward_entropy_maximisation(net: Network, flows_by_o: gt.EdgePropertyMap, n:int):
     """
