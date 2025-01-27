@@ -1,4 +1,5 @@
 from graph_tool.all import *
+import cairo
 import os
 import pandas as pd
 import numpy as np
@@ -53,9 +54,14 @@ class Network(Graph):
             raise ValueError("No 'net' file in folder")
         
         if "node" in files:
-            nodes = pd.read_csv(files["node"], sep='\t').drop([';'], axis=1)
+            if os.path.isfile(os.path.join(folder, "CSV-data", self.folder_name+"_node.csv")):
+                # Try getting other coordinates from a CSV (more geometric, in Sioux Falls)
+                nodes = pd.read_csv(os.path.join(folder, "CSV-data", self.folder_name+"_node.csv"))
+                nodes[["X", "Y"]] /= 1000
+            else:
+                nodes = pd.read_csv(files["node"], sep='\t').drop([';'], axis=1)
             super().__init__(len(nodes), *args, **kargs)
-            #Add positions
+            # Add positions
             pos = self.new_vertex_property("vector<float>", nodes[["X", "Y"]].to_numpy())
             self.vertex_properties["pos"] = pos
         else:
@@ -75,10 +81,16 @@ class Network(Graph):
     def draw(self, interactive=False, flows: EdgePropertyMap =None, flows_by_o = None, flows_by_OD = None, o=None, d=None, **kwargs):
         draw_function = interactive_window if interactive else graph_draw
         
+        vertex_names = self.vertex_index.copy()
+        vertex_names.a += 1 # Add one to correspond to the "known" node indexes
         options = dict(ink_scale=0.5,
-                       vertex_text = self.vertex_index)
+                       vertex_text = vertex_names)
         if "pos" in self.vp:
-            options["pos"] = self.vp.pos
+            pos: EdgePropertyMap = self.vp.pos.copy()
+            pos_a = pos.get_2d_array()
+            pos_a[1, :] *= -1
+            pos.set_2d_array(pos_a)
+            options["pos"] = pos
 
         for k, i in kwargs.items():
             options[k] = i
@@ -101,12 +113,18 @@ class Network(Graph):
             elif o == "sum":
                 flows = self.new_edge_property("float", vals = flows_by_o.get_2d_array().sum(axis=0))
 
-        if flows != None:
+        if flows is not None:
             options["edge_pen_width"] = prop_to_size(flows)
             text = self.new_edge_property("int")
             text.a = np.round(flows.a)
             options["edge_text"] = text
             options["edge_text_color"] = self.new_edge_property("string", vals=np.where(flows.a > flows.a.max()/1000, "black", "grey"))
+        else:
+            # Show edges numbers
+            text = self.edge_index.copy()
+            text.a +=1
+            options["edge_text"] = text
+            #options["edge_font_slant"] =
 
         return draw_function(self, **options)
     
@@ -255,6 +273,8 @@ class Network(Graph):
             array = flow.get_array()
             #array = np.hstack((self.get_edges(), array))
             df = pd.Series(array, name = name, index=pd.MultiIndex.from_arrays(self.get_edges().T.tolist(), names = ["i", "j"]))
+
+        
         
         df.to_csv(os.path.join(folder, "_".join([self.folder_name, str(dim) + "D", name])), sep="\t", float_format="%8.2f")
 
