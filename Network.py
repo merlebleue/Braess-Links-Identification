@@ -79,6 +79,13 @@ class Network(Graph):
             self.TNTP_flows = pd.read_csv(files["flow"], sep='\t')
 
     def draw(self, interactive=False, flows: EdgePropertyMap =None, flows_by_o = None, flows_by_OD = None, o=None, d=None, **kwargs):
+        # Correct o, d to python (-1):
+        if o is not None:
+            o -= 1
+        if d is not None:
+            d -= 1
+
+        # Specify the function
         draw_function = interactive_window if interactive else graph_draw
         
         vertex_names = self.vertex_index.copy()
@@ -96,11 +103,11 @@ class Network(Graph):
             options[k] = i
 
         if isinstance(flows_by_OD, np.ndarray):
-            if d == None:
+            if d is None:
                 flows_by_OD = flows_by_OD.sum(axis=1)
             else:
                 flows_by_OD = flows_by_OD[:, d, :]
-            if o == None:
+            if o is None:
                 flows_by_OD = flows_by_OD.sum(axis=0)
             else:
                 flows_by_OD=flows_by_OD[o]
@@ -184,7 +191,7 @@ class Network(Graph):
                 if dim == None:
                     raise ValueError(f"More than one file found with network {self.folder_name} and name {name} in folder {folder}. Specify dimension. Found files : {list_of_files}")
                 else:
-                    c = [c for c in candidates if c.split("_")[1][0] == dim]
+                    c = [c for c in candidates if c.split("_")[1][0] == str(dim)]
                     if len(c) != 1:
                         raise ValueError(f"No file or more than one file found with the required dimension. Corresponding files found : {candidates}")
                     else :
