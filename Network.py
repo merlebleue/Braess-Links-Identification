@@ -174,7 +174,7 @@ class Network(Graph):
 
         np.savetxt(os.path.join(folder, "_".join([self.folder_name, str(dim) + "D", name])), array)
 
-    def load_flow(self, name: str, dim = None, folder = "files"):
+    def load_flow(self, name: str, dim = None, folder = "files", verbose=1):
         """
         Load a flow (either total flows or flows by origin) from a txt file, previously saved with the .save_flow method, with columns `s, t, v1[, v2, ..]`
         """
@@ -183,7 +183,8 @@ class Network(Graph):
         
         match len(candidates):
             case 0:
-                print([(f.split("_")[0], "_".join(f.split("_")[2:])) for f in list_of_files])
+                if verbose > 0:
+                    print([(f.split("_")[0], "_".join(f.split("_")[2:])) for f in list_of_files])
                 raise ValueError(f"No file found with network {self.folder_name} and name {name} in folder {folder}. Found files : {list_of_files}")
             case 1:
                 file = candidates[0]
