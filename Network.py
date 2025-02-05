@@ -80,9 +80,9 @@ class Network(Graph):
 
     def draw(self, interactive=False, flows: EdgePropertyMap =None, flows_by_o = None, flows_by_OD = None, o=None, d=None, **kwargs):
         # Correct o, d to python (-1):
-        if o is not None:
+        if type(o) is int:
             o -= 1
-        if d is not None:
+        if type(d) is int:
             d -= 1
 
         # Specify the function
