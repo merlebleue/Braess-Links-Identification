@@ -53,14 +53,16 @@ def remove_all_OD(net: Network,
         except ValueError:        
             mask = ~np.isin(net.edge_index, edges_indices)
 
-            masked_by_origin, masked_flows = frankwolf(net, net.trips, OD_mask={od: mask for od in ODs}, verbose=1, tolerance= 1e-4, n_max=2e5)
+            try:
+            	masked_by_origin, masked_flows = frankwolf(net, net.trips, OD_mask={od: mask for od in ODs}, verbose=1, tolerance= 1e-4, n_max=2e5)
             
-            # Save and export the flows
-            net.save_flow(masked_by_origin, name_pattern.format(n = n, l=l), folder=save_folder)
-            net.save_flow(masked_flows, name_pattern.format(n = n, l=l), folder=save_folder)
-            net.export_flow(masked_by_origin, name_pattern.format(n = n, l=l), folder=export_folder)
-            net.export_flow(masked_flows, name_pattern.format(n = n, l=l), folder=export_folder)
-        
+            	# Save and export the flows
+            	net.save_flow(masked_by_origin, name_pattern.format(n = n, l=l), folder=save_folder)
+            	net.save_flow(masked_flows, name_pattern.format(n = n, l=l), folder=save_folder)
+            	net.export_flow(masked_by_origin, name_pattern.format(n = n, l=l), folder=export_folder)
+            	net.export_flow(masked_flows, name_pattern.format(n = n, l=l), folder=export_folder)
+            except OverflowError:
+                print(f"Error for links {[l+1 for l in edges_indices]}")
 
 def try_removing_braess_1_OD(
         net: Network,

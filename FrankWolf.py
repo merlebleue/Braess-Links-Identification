@@ -26,7 +26,7 @@ def shortest_path(net: Network, times: gt.EdgePropertyMap, origin: int, destinat
         improved_nodes = neighbors[mask]
         labels.a[improved_nodes] = labels[i] + edges_of_i[:,2][mask]
         predecessor.a[improved_nodes] = i
-        
+
         # Update the sequence set
         sequence.update(improved_nodes)
 

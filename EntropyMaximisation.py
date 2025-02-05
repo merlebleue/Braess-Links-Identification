@@ -186,7 +186,7 @@ def get_OD_flows(net: Network, OD: np.array, flows_by_origin: gt.EdgePropertyMap
 
                     # Save it in the paths variable
                     if flow > flow_limit and return_paths:
-                        paths[(r,s)].append((Q.copy(), flow))
+                        paths[(r,s)].append((Q[::-1].copy(), flow))
 
                     # Save it in the OD_flows array
                     if flow > flow_limit:
