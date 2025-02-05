@@ -25,9 +25,9 @@ files as well as drawing, saving, exporting and loading routines.
 
 ## Notebooks
 
-- [Initial network calculations.ipynb](Initial network calculations.ipynb) Countains the code for the inital network calculations, such as solving SiouxFalls at UE and SO.
-- [hypothesis testing.ipynb](hypothesis testing.ipynb) Countains the code for validating our hypothesis and analyse the results.
-- [example network.ipynb] Apply our code on the example network in Xie and Nie's *A new algorithm for achieving proportionality in user equi-
+- [Initial network calculations.ipynb](Initial%20network%20calculations.ipynb) Countains the code for the inital network calculations, such as solving SiouxFalls at UE and SO.
+- [hypothesis testing.ipynb](hypothesis%20testing.ipynb) Countains the code for validating our hypothesis and analyse the results.
+- [example network.ipynb](example%20network.ipynb) Apply our code on the example network in Xie and Nie's *A new algorithm for achieving proportionality in user equi-
 librium traffic assignment.*
 
 ## Outputs
